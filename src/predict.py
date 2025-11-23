@@ -4,8 +4,6 @@ import torch
 from transformers import AutoTokenizer, AutoModelForTokenClassification
 from labels import ID2LABEL, label_is_pii
 import os
-import re
-
 
 
 def bio_to_spans(text, offsets, label_ids):
@@ -47,9 +45,6 @@ def bio_to_spans(text, offsets, label_ids):
     return spans
 
 
-# ---------------------------------------------------------
-# MAIN Predict Function
-# ---------------------------------------------------------
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model_dir", default="out")
@@ -57,12 +52,12 @@ def main():
     ap.add_argument("--input", default="data/dev.jsonl")
     ap.add_argument("--output", default="out/dev_pred.json")
     ap.add_argument("--max_length", type=int, default=256)
-    ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    ap.add_argument(
+        "--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
 
     tokenizer = AutoTokenizer.from_pretrained(
-        args.model_dir if args.model_name is None else args.model_name
-    )
+        args.model_dir if args.model_name is None else args.model_name)
     model = AutoModelForTokenClassification.from_pretrained(args.model_dir)
     model.to(args.device)
     model.eval()
@@ -93,24 +88,15 @@ def main():
 
             spans = bio_to_spans(text, offsets, pred_ids)
             ents = []
-
             for s, e, lab in spans:
-                if s < 0 or e <= s or e > len(text):
-                    continue
-
-                text_span = text[s:e]
-
-                keep, new_lab = apply_postprocessing(s, e, lab, text_span)
-                if not keep:
-                    continue
-
-                ents.append({
-                    "start": int(s),
-                    "end": int(e),
-                    "label": new_lab,
-                    "pii": bool(label_is_pii(new_lab))
-                })
-
+                ents.append(
+                    {
+                        "start": int(s),
+                        "end": int(e),
+                        "label": lab,
+                        "pii": bool(label_is_pii(lab)),
+                    }
+                )
             results[uid] = ents
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
