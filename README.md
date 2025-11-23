@@ -22,6 +22,10 @@ if you dont have permission to run it, change it by
 chmod 777 run.sh
 ```
 
-The out folder that contains the model is saved in the gdrive and can be accessed here: 
+The out folder that contains the model is saved in the gdrive and can be accessed here: https://drive.google.com/drive/folders/1CQKFyq1vWiqVnDgyaCu45iJOCy9nr1Gs?usp=sharing
 
 Synthetic data link: https://drive.google.com/drive/folders/19n5DfLPH5YrJV00EfZ8D1xQkjCjOm3Uu?usp=sharing
+
+Predictions of dev data can be accessed here: https://drive.google.com/file/d/1xw-n4vuTe4bYqSeaLHMjCk4glAUJH9cy/view?usp=sharing
+
+Metrics can be found here: https://docs.google.com/document/d/1GLgWOCypidYdkh097oJ2mOAgufOf02aYonc_B0Rxk2M/edit?usp=sharing
