@@ -23,3 +23,5 @@ chmod 777 run.sh
 ```
 
 The out folder that contains the model is saved in the gdrive and can be accessed here: 
+
+Synthetic data link: https://drive.google.com/drive/folders/19n5DfLPH5YrJV00EfZ8D1xQkjCjOm3Uu?usp=sharing
