@@ -272,7 +272,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--train_out", default="data/train.jsonl")
     ap.add_argument("--dev_out", default="data/dev.jsonl")
-    ap.add_argument("--train_size", type=int, default=2000)
+    ap.add_argument("--train_size", type=int, default=1000)
     ap.add_argument("--dev_size", type=int, default=300)
     args = ap.parse_args()
 
