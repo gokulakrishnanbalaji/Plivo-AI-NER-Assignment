@@ -6,39 +6,73 @@ import re
 
 
 # ===============================
-# Light, realistic ASR-style noise
+# Light ASR-Style Noise
 # ===============================
 
 FILLERS = ["uh", "um", "hmm", "okay", "yeah", "please", "so", "actually", ""]
 
 
 def maybe_misspell(word):
-    """Tiny, realistic misspellings."""
     if random.random() < 0.04:
         if len(word) > 4:
             i = random.randint(1, len(word)-2)
-            return word[:i] + word[i+1:]  # delete one character
+            return word[:i] + word[i+1:]
     return word
 
 
-def apply_mild_noise(text):
-    """Add light, realistic noise without destroying meaning."""
-    words = text.split()
-    out = []
+def apply_mild_noise_except_phone(text, phone_spans):
+    """
+    Apply mild noise but avoid modifying PHONE entity spans.
+    phone_spans = list of (start, end)
+    """
+    protected = [0] * len(text)
+    for s, e in phone_spans:
+        for i in range(s, min(e, len(text))):
+            protected[i] = 1
 
-    for w in words:
+    new_chars = []
+    i = 0
+    while i < len(text):
+        if protected[i] == 1:
+            new_chars.append(text[i])
+            i += 1
+            continue
+
         # small filler insertion
-        if random.random() < 0.04:
-            out.append(random.choice(FILLERS))
+        if random.random() < 0.04 and text[i] == ' ':
+            new_chars.append(" " + random.choice(FILLERS) + " ")
 
-        # tiny misspell
-        out.append(maybe_misspell(w))
+        new_chars.append(text[i])
+        i += 1
 
-    return " ".join([w for w in out if w])
+    noisy = "".join(new_chars)
+
+    # Now apply misspell noise only outside protected spans
+    words = noisy.split(" ")
+    out_words = []
+    idx = 0
+    for w in words:
+        start = idx
+        end = idx + len(w)
+        idx += len(w) + 1
+
+        # check if word is inside phone span
+        in_phone = False
+        for ps, pe in phone_spans:
+            if not (end < ps or start > pe):
+                in_phone = True
+                break
+
+        if in_phone:
+            out_words.append(w)
+        else:
+            out_words.append(maybe_misspell(w))
+
+    return " ".join(out_words)
 
 
 # ===============================
-# Entity generators
+# Entity Generators
 # ===============================
 
 FIRST = ["rohan", "amit", "karthik", "vijay", "rahul", "shreya",
@@ -47,6 +81,7 @@ LAST = ["mehta", "kumar", "sharma", "iyer", "reddy",
         "patel", "singh", "joshi", "yadav"]
 
 EMAIL_DOMAINS = ["gmail dot com", "yahoo dot com", "outlook dot com"]
+
 MONTHS = [
     "january", "february", "march", "april", "may", "june",
     "july", "august", "september", "october", "november", "december"
@@ -75,37 +110,40 @@ def gen_email():
 
 def gen_phone():
     digits = "".join(random.choice("0123456789") for _ in range(10))
-    # 80% numeric, 20% spoken
-    if random.random() < 0.2:
+
+    # Very stable, noise-free formats:
+    patterns = [
+        digits,
+        digits[:5] + " " + digits[5:],
+        "+91 " + digits,
+    ]
+
+    # Add very small spoken-digits portion (5%):
+    if random.random() < 0.05:
         return " ".join(DIGIT_WORDS[int(d)] for d in digits)
-    return digits
+
+    return random.choice(patterns)
 
 
 def gen_credit_card():
     digits = "".join(random.choice("0123456789") for _ in range(16))
-    blocks = [digits[i:i+4] for i in range(0, 16, 4)]
-
-    # 75% clean numeric format, 25% spoken
-    if random.random() < 0.25:
-        return " ".join(DIGIT_WORDS[int(d)] for d in digits)
-    return " ".join(blocks)
+    return " ".join([digits[i:i+4] for i in range(0, 16, 4)])
 
 
 def gen_date():
     day = random.randint(1, 28)
     month = random.choice(MONTHS)
     year = random.choice([2023, 2024, 2025])
-    formats = [
+    return random.choice([
         f"{day} {month} {year}",
         f"{day} {month}",
         f"{month} {day} {year}",
         f"{day} of {month} {year}",
-    ]
-    return random.choice(formats)
+    ])
 
 
 # ===============================
-# Natural, realistic templates
+# Templates (PHONE Enhanced)
 # ===============================
 
 TEMPLATES = [
@@ -117,12 +155,18 @@ TEMPLATES = [
     "please send it to {EMAIL}",
     "{EMAIL} is my email",
 
-    # PHONE
+    # PHONE — Added richer patterns
     "call me on {PHONE}",
     "my phone number is {PHONE}",
     "reach me on {PHONE}",
     "you can call at {PHONE}",
     "my contact number is {PHONE}",
+    "my number is {PHONE}",
+    "mobile number is {PHONE}",
+    "you can reach me at {PHONE}",
+    "phone is {PHONE}",
+    "contact no is {PHONE}",
+    "my mobile is {PHONE}",
 
     # CREDIT CARD
     "my credit card number is {CREDIT_CARD}",
@@ -151,52 +195,35 @@ TEMPLATES = [
 
 
 # ===============================
-# Fill all placeholders correctly
+# Template Filler
 # ===============================
 
 def fill_template(template):
-    """
-    Replaces ALL placeholders ({EMAIL}, {PHONE}, etc.)
-    and returns (text, list_of_entity_spans)
-    """
     entities = []
     text = template
-
     labels = re.findall(r"{(.*?)}", template)
 
     for label in labels:
-        if label == "EMAIL":
-            ent = gen_email()
-        elif label == "PHONE":
-            ent = gen_phone()
-        elif label == "CREDIT_CARD":
-            ent = gen_credit_card()
-        elif label == "DATE":
-            ent = gen_date()
-        elif label == "CITY":
-            ent = random.choice(CITIES)
-        elif label == "LOCATION":
-            ent = random.choice(LOCATIONS)
-        elif label == "PERSON_NAME":
-            ent = gen_name()
-        else:
-            raise ValueError(f"Unknown label {label}")
+        if label == "EMAIL": ent = gen_email()
+        elif label == "PHONE": ent = gen_phone()
+        elif label == "CREDIT_CARD": ent = gen_credit_card()
+        elif label == "DATE": ent = gen_date()
+        elif label == "CITY": ent = random.choice(CITIES)
+        elif label == "LOCATION": ent = random.choice(LOCATIONS)
+        elif label == "PERSON_NAME": ent = gen_name()
+        else: raise ValueError(f"Unknown label {label}")
 
-        # find placeholder location
         placeholder = "{" + label + "}"
         start = text.lower().find(placeholder.lower())
         end = start + len(ent)
-
         entities.append({"start": start, "end": end, "label": label})
-
-        # replace FIRST occurrence ONLY
         text = text.replace(placeholder, ent, 1)
 
     return text, entities
 
 
 # ===============================
-# Utterance builder
+# Utterance Builder (with PHONE protection)
 # ===============================
 
 def build_utterance(uid):
@@ -207,26 +234,32 @@ def build_utterance(uid):
     all_entities = []
 
     for tpl in chosen:
-        sentence, ents = fill_template(tpl)
-        sentence = apply_mild_noise(sentence)
+        sent, ents = fill_template(tpl)
 
-        # adjust entity spans
+        # Identify phone spans
+        phone_spans = [(e["start"] + len(full_text), e["end"] + len(full_text))
+                       for e in ents if e["label"] == "PHONE"]
+
+        # Add to global list
         for e in ents:
             e["start"] += len(full_text)
             e["end"] += len(full_text)
             all_entities.append(e)
 
-        full_text += sentence + " "
+        # Apply noise but protect phone spans
+        updated = apply_mild_noise_except_phone(sent, phone_spans)
+
+        full_text += updated + " "
 
     return {
         "id": f"utt_{uid:05d}",
         "text": full_text.strip(),
-        "entities": all_entities,
+        "entities": all_entities
     }
 
 
 # ===============================
-# Main generation function
+# Main
 # ===============================
 
 def generate(path, n):
@@ -245,10 +278,7 @@ if __name__ == "__main__":
 
     os.makedirs("data", exist_ok=True)
 
-    print("Generating realistic training data...")
+    print("Generating enhanced dataset...")
     generate(args.train_out, args.train_size)
-
-    print("Generating realistic dev data...")
     generate(args.dev_out, args.dev_size)
-
-    print("Done. Realistic dataset generated successfully.")
+    print("Done.")
